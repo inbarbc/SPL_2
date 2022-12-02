@@ -50,6 +50,10 @@ public class Player implements Runnable {
      */
     private int score;
 
+    private final Integer[] tokenToSlot;
+    private long announceSetTime;
+    private int tokens;
+
     /**
      * The class constructor.
      *
@@ -59,25 +63,33 @@ public class Player implements Runnable {
      * @param id     - the id of the player.
      * @param human  - true iff the player is a human player (i.e. input is provided manually, via the keyboard).
      */
-    public Player(Env env, Dealer dealer, Table table, int id, boolean human) {
+    public Player(Env env, Dealer dealer, Table table, int id, boolean human)
+    {
         this.env = env;
         this.table = table;
         this.id = id;
         this.human = human;
+
+        tokenToSlot = new Integer[3];
+        announceSetTime = Long.MAX_VALUE;
+        tokens = 0;
     }
 
     /**
      * The main player thread of each player starts here (main loop for the player thread).
      */
     @Override
-    public void run() {
+    public void run()
+     {
         playerThread = Thread.currentThread();
         System.out.printf("Info: Thread %s starting.%n", Thread.currentThread().getName());
         if (!human) createArtificialIntelligence();
 
-        while (!terminate) {
-            // TODO implement main player loop
+        while (!terminate)
+        {
+            if (tokens == 3) {announceSetTime = System.currentTimeMillis();}
         }
+
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
         System.out.printf("Info: Thread %s terminated.%n", Thread.currentThread().getName());
     }
@@ -86,15 +98,18 @@ public class Player implements Runnable {
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
      * key presses. If the queue of key presses is full, the thread waits until it is not full.
      */
-    private void createArtificialIntelligence() {
+    private void createArtificialIntelligence()
+     {
         // note: this is a very very smart AI (!)
-        aiThread = new Thread(() -> {
+        aiThread = new Thread(() ->
+        {
             System.out.printf("Info: Thread %s starting.%n", Thread.currentThread().getName());
-            while (!terminate) {
+            while (!terminate) 
+            {
                 // TODO implement player key press simulator
-                try {
-                    synchronized (this) { wait(); }
-                } catch (InterruptedException ignored) {}
+
+                try {synchronized (this) { wait(); }}
+                catch (InterruptedException ignored) {}
             }
             System.out.printf("Info: Thread %s terminated.%n", Thread.currentThread().getName());
         }, "computer-" + id);
@@ -104,7 +119,8 @@ public class Player implements Runnable {
     /**
      * Called when the game should be terminated due to an external event.
      */
-    public void terminate() {
+    public void terminate()
+    {
         // TODO implement
     }
 
@@ -113,8 +129,35 @@ public class Player implements Runnable {
      *
      * @param slot - the slot corresponding to the key pressed.
      */
-    public void keyPressed(int slot) {
-        // TODO implement
+    public void keyPressed(int slot)
+    {
+        boolean toPlaceToken = true;
+
+        for (int i = 0; i < tokenToSlot.length; i++)
+        {
+            if (tokenToSlot[i] != null && tokenToSlot[i] == slot)
+            {
+                env.ui.removeToken(id, slot);
+                tokenToSlot[i] = null;
+                toPlaceToken = false;
+                tokens--;
+                break;
+            }
+        }
+
+        if (toPlaceToken)
+        {
+            for (int i = 0; i < tokenToSlot.length; i++)
+            {
+                if (tokenToSlot[i] == null)
+                {
+                    env.ui.placeToken(id, slot);
+                    tokenToSlot[i] = slot;
+                    tokens++;               
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -133,15 +176,18 @@ public class Player implements Runnable {
     /**
      * Penalize a player and perform other related actions.
      */
-    public void penalty() {
+    public void penalty()
+    {
         // TODO implement
     }
 
-    public int getScore() {
+    public int getScore() 
+    {
         return score;
     }
-    
-    public int getId() {
-        return id;
+
+    public long getAnnounceSetTime()
+    {
+        return announceSetTime;
     }
 }

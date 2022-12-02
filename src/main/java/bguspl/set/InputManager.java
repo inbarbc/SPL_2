@@ -15,12 +15,14 @@ class InputManager extends KeyAdapter {
     int[] keyMap = new int[MAX_KEY_CODE + 1];
     int[] keyToSlot = new int[MAX_KEY_CODE + 1];
 
-    public InputManager(Env env, Player[] players) {
+    public InputManager(Env env, Player[] players)
+     {
         this.players = players;
 
         // initialize the keys
         for (int player = 0; player < env.config.players; ++player)
-            for (int i = 0; i < env.config.playerKeys(player).length; i++) {
+            for (int i = 0; i < env.config.playerKeys(player).length; i++)
+            {
                 int keyCode = env.config.playerKeys(player)[i];
                 keyMap[keyCode] = player + 1; // 1 for first player and 2 for second player
                 keyToSlot[keyCode] = i;
@@ -28,7 +30,8 @@ class InputManager extends KeyAdapter {
     }
 
     @Override
-    public void keyPressed(KeyEvent e) {
+    public void keyPressed(KeyEvent e)
+    {
         // dispatch the key event to the player according to the key map
         int keyCode = e.getKeyCode();
         int player = keyMap[keyCode] - 1;
