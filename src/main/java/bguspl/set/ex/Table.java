@@ -56,7 +56,7 @@ public class Table {
     /**
      * This method prints all possible legal sets of cards that are currently on the table.
      */
-    public void hints() {
+    public synchronized void hints() {
         List<Integer> deck = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());
         env.util.findSets(deck, Integer.MAX_VALUE).forEach(set -> {
             StringBuilder sb = new StringBuilder().append("Hint: Set found: ");
@@ -71,7 +71,7 @@ public class Table {
      *
      * @return - the number of cards on the table.
      */
-    public int countCards() {
+    public synchronized int countCards() {
         int cards = 0;
         for (Integer card : slotToCard)
             if (card != null)
@@ -86,7 +86,7 @@ public class Table {
      *
      * @post - the card placed is on the table, in the assigned slot.
      */
-    public void placeCard(int card, int slot) {
+    public synchronized void placeCard(int card, int slot) {
         try {
             Thread.sleep(env.config.tableDelayMillis);
         } catch (InterruptedException ignored) {}
@@ -103,7 +103,7 @@ public class Table {
      * Removes a card from a grid slot on the table.
      * @param slot - the slot from which to remove the card.
      */
-    public void removeCard(int slot) {
+    public synchronized void removeCard(int slot) {
         try {
             Thread.sleep(env.config.tableDelayMillis);
         } catch (InterruptedException ignored) {}
@@ -119,18 +119,20 @@ public class Table {
      * @param player - the player the token belongs to.
      * @param slot   - the slot on which to place the token.
      */
-    public void placeToken(int player, int slot) {
+    public synchronized void placeToken(int player, int slot) {
         // TODO implement
+        env.ui.placeToken(player, slot);
     }
 
     /**
      * Removes a token of a player from a grid slot.
      * @param player - the player the token belongs to.
      * @param slot   - the slot from which to remove the token.
-     * @return       - true iff a token was successfully removed.
+     // * @return       - true iff a token was successfully removed. //
      */
-    public boolean removeToken(int player, int slot) {
+    public synchronized void removeToken(int player, int slot) {
         // TODO implement
-        return false;
+        env.ui.removeToken(player,slot);
+        //return false;
     }
 }

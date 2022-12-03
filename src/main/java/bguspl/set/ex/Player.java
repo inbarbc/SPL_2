@@ -137,7 +137,7 @@ public class Player implements Runnable {
         {
             if (tokenToSlot[i] != null && tokenToSlot[i] == slot)
             {
-                env.ui.removeToken(id, slot);
+                table.removeToken(id, slot);
                 tokenToSlot[i] = null;
                 toPlaceToken = false;
                 tokens--;
@@ -151,7 +151,7 @@ public class Player implements Runnable {
             {
                 if (tokenToSlot[i] == null)
                 {
-                    env.ui.placeToken(id, slot);
+                    table.placeToken(id, slot);
                     tokenToSlot[i] = slot;
                     tokens++;               
                     break;
@@ -169,8 +169,17 @@ public class Player implements Runnable {
     public void point() {
         // TODO implement
 
-        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
+        int ignoreNum = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
+
+        announceSetTime = Long.MAX_VALUE;
+        tokens = 0;
+        resetTokenToSlot();
+        
+        env.ui.setFreeze(id, 1000);
+        if (human) try { playerThread.sleep(1000); } catch (InterruptedException ignored) {};
+        if (!human) try { aiThread.sleep(1000); } catch (InterruptedException ignored) {};
+        env.ui.setFreeze(id, -1);
     }
 
     /**
@@ -179,6 +188,22 @@ public class Player implements Runnable {
     public void penalty()
     {
         // TODO implement
+        announceSetTime = Long.MAX_VALUE;
+        tokens = 0;
+        resetTokenToSlot();
+
+        //try { Thread.currentThread().sleep(3000); } catch (InterruptedException ignored) {};
+        
+        // its not ok because it stops all the game
+        
+    }
+
+    public void resetTokenToSlot()
+    {
+        for(int i = 0; i < tokenToSlot.length; i++)
+        {
+            tokenToSlot[i] = null;
+        }
     }
 
     public int getScore() 
@@ -186,8 +211,23 @@ public class Player implements Runnable {
         return score;
     }
 
+    public int getTokens() 
+    {
+        return tokens;
+    }
+
     public long getAnnounceSetTime()
     {
         return announceSetTime;
+    }
+
+    public int getTokenToSlot(int i)
+    {
+        return tokenToSlot[i];
+    }
+
+    public Thread getThread()
+    {
+        return playerThread;
     }
 }

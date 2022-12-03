@@ -40,12 +40,23 @@ public class Dealer implements Runnable {
      */
     private long reshuffleTime = Long.MAX_VALUE;
 
+    /**
+     * The array of a few slots of cards who needs to be removed from the table.
+     */
+    private int[] removeCardsSlots;
+
+
     public Dealer(Env env, Table table, Player[] players)
     {
         this.env = env;
         this.table = table;
         this.players = players;
         deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());
+        removeCardsSlots = new int[3];
+        for(int i = 0; i < removeCardsSlots.length; i++)
+        {
+            removeCardsSlots[i] = 100;
+        }
     }
 
     /**
@@ -95,7 +106,10 @@ public class Dealer implements Runnable {
      */
     public void terminate()
     {
-
+        for(Player player: players)
+        {
+            player.terminate();
+        }
     }
 
     /**
@@ -105,7 +119,12 @@ public class Dealer implements Runnable {
      */
     private boolean shouldFinish()
     {
-        return terminate || env.util.findSets(deck, 1).size() == 0;
+        if(terminate || env.util.findSets(deck, 1).size() == 0)
+        {
+            terminate();
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -113,7 +132,14 @@ public class Dealer implements Runnable {
      */
     private void removeCardsFromTable()
     {
-        
+        for (int i=0; i<removeCardsSlots.length; i++)
+        {
+            if(removeCardsSlots[i] != 100)
+            {
+                table.removeCard(removeCardsSlots[i]);
+                removeCardsSlots[i] = 100;
+            }
+        }
     }
 
     /**
@@ -126,7 +152,7 @@ public class Dealer implements Runnable {
         int slot = 0;
         int card = 0; 
 
-        while (slot < table.slotToCard.length) 
+        while (slot < table.slotToCard.length && !deck.isEmpty()) 
         {
             if (table.slotToCard[slot] == null)
             {
@@ -148,14 +174,46 @@ public class Dealer implements Runnable {
 
         for (Player player : players)
         {
-            if (player.getAnnounceSetTime() < m) 
+            if (player.getTokens() == 3 && player.getAnnounceSetTime() < m) 
             {
                 m = player.getAnnounceSetTime();
                 p = player;
             }
         }
 
-        if (p != null) {}
+        if (p != null)
+        {
+            int[] cards = new int[3];
+            for(int i=0; i<cards.length; i++)
+            {
+                int tokenSlot = p.getTokenToSlot(i);
+                removeCardsSlots[i] = tokenSlot;
+                cards[i] = table.slotToCard[tokenSlot];
+            }
+
+            for(int i = 0; i<removeCardsSlots.length; i++)
+            {
+                table.removeToken(p.id, removeCardsSlots[i]);
+            }
+            
+            if(env.util.testSet(cards))
+            {
+                p.point();
+                updateTimerDisplay(true);
+                try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
+            }
+            else
+            {
+                p.penalty();
+                env.ui.setFreeze(p.id, 3000);
+                try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
+                env.ui.setFreeze(p.id, 2000);
+                try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
+                env.ui.setFreeze(p.id, 1000);
+                try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
+                env.ui.setFreeze(p.id, -1);
+            }
+        }
     }
 
     /**
@@ -176,7 +234,8 @@ public class Dealer implements Runnable {
         {
             if (table.slotToCard[i] != null)
             {
-                deck.add(table.slotToCard[i]);
+                // it should not take the card back to the deck!
+                //deck.add(table.slotToCard[i]);
                 table.removeCard(i);               
             }
         }
@@ -187,6 +246,11 @@ public class Dealer implements Runnable {
      */
     private void announceWinners()
     {
-        
+        int[] playersID = new int[players.length];
+        for(int i = 0; i < playersID.length; i++)
+        {
+            playersID[i] = players[i].id;
+        }
+        env.ui.announceWinner(playersID);
     }
 }
