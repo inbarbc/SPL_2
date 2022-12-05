@@ -110,6 +110,7 @@ public class Dealer implements Runnable {
         {
             player.terminate();
         }
+        Thread.currentThread().interrupt();
     }
 
     /**
@@ -206,12 +207,19 @@ public class Dealer implements Runnable {
             {
                 p.penalty();
                 env.ui.setFreeze(p.id, 3000);
-                try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
+                
+                /* 
+                while(p != null)
+                    p.getThread().wait();
+                p.getThread().notifyAll();
+                
+                try {p.getThread().sleep(3000); }  catch (InterruptedException ignored) {};
                 env.ui.setFreeze(p.id, 2000);
                 try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
                 env.ui.setFreeze(p.id, 1000);
                 try {p.getThread().sleep(1000); }  catch (InterruptedException ignored) {};
                 env.ui.setFreeze(p.id, -1);
+                */
             }
         }
     }

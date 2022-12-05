@@ -122,6 +122,16 @@ public class Player implements Runnable {
     public void terminate()
     {
         // TODO implement
+
+        /* 
+        playerThread.interrupt();
+        if (!human)
+        {
+            aiThread.interrupt();
+        }
+        */
+
+        Thread.currentThread().interrupt();
     }
 
     /**
@@ -192,9 +202,8 @@ public class Player implements Runnable {
         tokens = 0;
         resetTokenToSlot();
 
-        //try { Thread.currentThread().sleep(3000); } catch (InterruptedException ignored) {};
-        
         // its not ok because it stops all the game
+        //try { Thread.currentThread().sleep(3000); } catch (InterruptedException ignored) {};
         
     }
 

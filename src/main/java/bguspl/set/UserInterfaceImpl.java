@@ -79,7 +79,7 @@ public class UserInterfaceImpl extends JFrame implements UserInterface {
 
         private void setCountdown(long millies, boolean warn) {
             timerField.setText(generateTime(millies, warn));
-            timerField.setBackground(warn ? Color.RED : Color.BLACK);
+            timerField.setForeground(warn ? Color.RED : Color.BLACK);
         }
 
         private void setElapsed(long millies) {
