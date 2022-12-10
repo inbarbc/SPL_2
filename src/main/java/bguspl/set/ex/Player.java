@@ -1,6 +1,11 @@
 package bguspl.set.ex;
 
+import java.util.logging.Level;
+
 import bguspl.set.Env;
+
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  * This class manages the players' threads and data
@@ -50,9 +55,11 @@ public class Player implements Runnable {
      */
     private int score;
 
+    private int numberOfTokens;
+    private final Dealer dealer;
     private final Integer[] tokenToSlot;
-    private long announceSetTime;
-    private int tokens;
+    private Queue<Integer> queue;
+    private boolean notifyTheDealer;
 
     /**
      * The class constructor.
@@ -63,55 +70,95 @@ public class Player implements Runnable {
      * @param id     - the id of the player.
      * @param human  - true iff the player is a human player (i.e. input is provided manually, via the keyboard).
      */
-    public Player(Env env, Dealer dealer, Table table, int id, boolean human)
+    public Player(Env env, Dealer dealer, Table table, int id, boolean human) 
     {
         this.env = env;
+        this.dealer = dealer;
         this.table = table;
         this.id = id;
         this.human = human;
 
+        queue = new LinkedList<>();
         tokenToSlot = new Integer[3];
-        announceSetTime = Long.MAX_VALUE;
-        tokens = 0;
+        numberOfTokens = 0;
+        notifyTheDealer = false;
     }
 
     /**
      * The main player thread of each player starts here (main loop for the player thread).
      */
     @Override
-    public void run()
-     {
+    public synchronized void run() 
+    {
         playerThread = Thread.currentThread();
-        System.out.printf("Info: Thread %s starting.%n", Thread.currentThread().getName());
+        env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + "starting.");
         if (!human) createArtificialIntelligence();
 
-        while (!terminate)
+        while (!terminate) 
         {
-            if (tokens == 3) {announceSetTime = System.currentTimeMillis();}
+            if (!queue.isEmpty())
+            {
+                int slot = queue.remove();
+                boolean toPlaceToken = true;
+
+                for (int i = 0; i < tokenToSlot.length; i++)
+                {
+                    if (tokenToSlot[i] != null && tokenToSlot[i] == slot)
+                    {
+                        table.removeToken(id, slot);
+                        tokenToSlot[i] = null;
+                        toPlaceToken = false;
+                        numberOfTokens--;
+                        notifyTheDealer = false;
+                        break;
+                    }
+                }
+        
+                if (toPlaceToken)
+                {
+                    for (int i = 0; i < tokenToSlot.length; i++)
+                    {
+                        if (tokenToSlot[i] == null)
+                        {
+                            table.placeToken(id, slot);
+                            tokenToSlot[i] = slot;
+                            numberOfTokens++;  
+                            if (numberOfTokens == 3) {notifyTheDealer = true;}   
+                            break;
+                        }                   
+                    }
+                }
+            }
+
+            if (notifyTheDealer) 
+            {
+                dealer.addToQueue(this);
+                notifyAll();               
+                notifyTheDealer = false;
+            }
         }
 
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
-        System.out.printf("Info: Thread %s terminated.%n", Thread.currentThread().getName());
+        env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
     }
 
     /**
      * Creates an additional thread for an AI (computer) player. The main loop of this thread repeatedly generates
      * key presses. If the queue of key presses is full, the thread waits until it is not full.
      */
-    private void createArtificialIntelligence()
-     {
+    private void createArtificialIntelligence() 
+    {
         // note: this is a very very smart AI (!)
-        aiThread = new Thread(() ->
-        {
-            System.out.printf("Info: Thread %s starting.%n", Thread.currentThread().getName());
+        aiThread = new Thread(() -> {
+            env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
             while (!terminate) 
             {
                 // TODO implement player key press simulator
-
-                try {synchronized (this) { wait(); }}
-                catch (InterruptedException ignored) {}
+                try {
+                    synchronized (this) { wait(); }
+                } catch (InterruptedException ignored) {}
             }
-            System.out.printf("Info: Thread %s terminated.%n", Thread.currentThread().getName());
+            env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
         aiThread.start();
     }
@@ -119,19 +166,9 @@ public class Player implements Runnable {
     /**
      * Called when the game should be terminated due to an external event.
      */
-    public void terminate()
+    public void terminate() 
     {
         // TODO implement
-
-        /* 
-        playerThread.interrupt();
-        if (!human)
-        {
-            aiThread.interrupt();
-        }
-        */
-
-        Thread.currentThread().interrupt();
     }
 
     /**
@@ -139,35 +176,9 @@ public class Player implements Runnable {
      *
      * @param slot - the slot corresponding to the key pressed.
      */
-    public void keyPressed(int slot)
+    public void keyPressed(int slot) 
     {
-        boolean toPlaceToken = true;
-
-        for (int i = 0; i < tokenToSlot.length; i++)
-        {
-            if (tokenToSlot[i] != null && tokenToSlot[i] == slot)
-            {
-                table.removeToken(id, slot);
-                tokenToSlot[i] = null;
-                toPlaceToken = false;
-                tokens--;
-                break;
-            }
-        }
-
-        if (toPlaceToken)
-        {
-            for (int i = 0; i < tokenToSlot.length; i++)
-            {
-                if (tokenToSlot[i] == null)
-                {
-                    table.placeToken(id, slot);
-                    tokenToSlot[i] = slot;
-                    tokens++;               
-                    break;
-                }
-            }
-        }
+        if (queue.size() < 3) {queue.add(slot);}
     }
 
     /**
@@ -176,43 +187,21 @@ public class Player implements Runnable {
      * @post - the player's score is increased by 1.
      * @post - the player's score is updated in the ui.
      */
-    public void point() {
-        // TODO implement
+    public void point() 
+    {
+        removeAllTokensFromTable();
 
-        int ignoreNum = table.countCards(); // this part is just for demonstration in the unit tests
+        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
-
-        announceSetTime = Long.MAX_VALUE;
-        tokens = 0;
-        resetTokenToSlot();
-        
-        env.ui.setFreeze(id, 1000);
-        if (human) try { playerThread.sleep(1000); } catch (InterruptedException ignored) {};
-        if (!human) try { aiThread.sleep(1000); } catch (InterruptedException ignored) {};
-        env.ui.setFreeze(id, -1);
     }
 
     /**
      * Penalize a player and perform other related actions.
      */
-    public void penalty()
+    public synchronized void penalty() 
     {
-        // TODO implement
-        announceSetTime = Long.MAX_VALUE;
-        tokens = 0;
-        resetTokenToSlot();
-
-        // its not ok because it stops all the game
-        //try { Thread.currentThread().sleep(3000); } catch (InterruptedException ignored) {};
-        
-    }
-
-    public void resetTokenToSlot()
-    {
-        for(int i = 0; i < tokenToSlot.length; i++)
-        {
-            tokenToSlot[i] = null;
-        }
+        // try { playerThread.sleep(3000); }
+        // catch (InterruptedException ignored) {}
     }
 
     public int getScore() 
@@ -220,23 +209,28 @@ public class Player implements Runnable {
         return score;
     }
 
-    public int getTokens() 
+    public int getNumberOfTokens() 
     {
-        return tokens;
+        return numberOfTokens;
     }
 
-    public long getAnnounceSetTime()
+    public Integer getTokenToSlot(int token)
     {
-        return announceSetTime;
+        return tokenToSlot[token];
     }
 
-    public int getTokenToSlot(int i)
+    public void removeAllTokensFromTable()
     {
-        return tokenToSlot[i];
-    }
+        for (int i = 0; i < tokenToSlot.length; i++)
+        {
+            if (tokenToSlot[i] != null)
+            {
+                table.removeToken(id, tokenToSlot[i]);
+                tokenToSlot[i] = null;
+                numberOfTokens--;
+            }
+        }
 
-    public Thread getThread()
-    {
-        return playerThread;
+        notifyTheDealer = false;
     }
 }
