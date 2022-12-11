@@ -88,7 +88,7 @@ public class Dealer implements Runnable {
      */
     private void timerLoop() 
     {
-        reshuffleTime = System.currentTimeMillis() + (60*1000);
+        reshuffleTime = System.currentTimeMillis() + (61*1000);
 
         while (!terminate && System.currentTimeMillis() < reshuffleTime) 
         {
@@ -208,9 +208,17 @@ public class Dealer implements Runnable {
         }
     }
 
-    public void interrupted()
+    public void interrupt()
     {
         dealerThread.interrupt();
+    }
+
+    public void removeTokensFromTable()
+    {
+        for (Player player : players)
+        {
+            player.removeTokensFromTable(slots);
+        }
     }
 
     public void CheckingPlayerSet()
@@ -233,6 +241,8 @@ public class Dealer implements Runnable {
                 }
 
                 player.setState(false, true);
+                removeTokensFromTable();
+                updateTimerDisplay(true);
             }
             else 
             {

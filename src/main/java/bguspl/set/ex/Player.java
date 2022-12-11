@@ -137,11 +137,11 @@ public class Player implements Runnable {
             if (notifyTheDealer) 
             {
                 dealer.addToQueue(this);
-                dealer.interrupted();
+                dealer.interrupt();
                 notifyTheDealer = false;
             }
 
-            if(point) {point(); point = false;}
+            if (point) {point(); point = false;}
             else if (penalty) {penalty(); penalty = false;}
         }
 
@@ -197,6 +197,16 @@ public class Player implements Runnable {
     {
         removeAllTokensFromTable();
 
+        long time = System.currentTimeMillis() + (1000);
+
+        while (System.currentTimeMillis() < time)
+        {
+            env.ui.setFreeze(id, time - System.currentTimeMillis());
+            try {Thread.sleep(950);}
+            catch (InterruptedException ignore) {}
+        }
+        env.ui.setFreeze(id, 0);
+
         int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
     }
@@ -206,8 +216,15 @@ public class Player implements Runnable {
      */
     public void penalty() 
     {
-        try {Thread.sleep(3000);}
-        catch (InterruptedException ignore) {}
+        long time = System.currentTimeMillis() + (3*1000);
+
+        while (System.currentTimeMillis() < time)
+        {
+            env.ui.setFreeze(id, time - System.currentTimeMillis());
+            try {Thread.sleep(950);}
+            catch (InterruptedException ignore) {}
+        }
+        env.ui.setFreeze(id, 0);
     }
 
     public int getScore() 
@@ -238,6 +255,22 @@ public class Player implements Runnable {
         }
 
         notifyTheDealer = false;
+    }
+
+    public void removeTokensFromTable(Integer[] slots)
+    {
+        for (int i = 0; i < slots.length; i++)
+        {
+            for (int j = 0; j < tokenToSlot.length; j++)
+            {
+                if(tokenToSlot[j] == slots[i])
+                {
+                    table.removeToken(id, tokenToSlot[j]);
+                    tokenToSlot[j] = null;
+                    numberOfTokens--;
+                }
+            }
+        }
     }
 
     public void setState(boolean penalty, boolean point)
