@@ -151,10 +151,10 @@ public class Dealer implements Runnable {
     /**
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
-    private synchronized void sleepUntilWokenOrTimeout() 
+    private void sleepUntilWokenOrTimeout() 
     {
-        try {wait(1000);}
-        catch (InterruptedException ignored) {CheckingPlayerSet();}
+        try {Thread.sleep(950);}
+        catch (InterruptedException e) {CheckingPlayerSet();}
     }
 
     /**
@@ -200,6 +200,11 @@ public class Dealer implements Runnable {
         {
             player.removeAllTokensFromTable();
         }
+    }
+
+    public void interrupted()
+    {
+        Thread.interrupted();
     }
 
     public void CheckingPlayerSet()

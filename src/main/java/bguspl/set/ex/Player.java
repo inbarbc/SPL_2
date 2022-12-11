@@ -88,7 +88,7 @@ public class Player implements Runnable {
      * The main player thread of each player starts here (main loop for the player thread).
      */
     @Override
-    public synchronized void run() 
+    public void run() 
     {
         playerThread = Thread.currentThread();
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + "starting.");
@@ -133,7 +133,7 @@ public class Player implements Runnable {
             if (notifyTheDealer) 
             {
                 dealer.addToQueue(this);
-                notifyAll();               
+                dealer.interrupted();
                 notifyTheDealer = false;
             }
         }
@@ -154,9 +154,8 @@ public class Player implements Runnable {
             while (!terminate) 
             {
                 // TODO implement player key press simulator
-                try {
-                    synchronized (this) { wait(); }
-                } catch (InterruptedException ignored) {}
+                try {synchronized (this) {wait();}}
+                catch (InterruptedException ignored) {}
             }
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
