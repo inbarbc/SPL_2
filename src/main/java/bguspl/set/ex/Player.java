@@ -60,6 +60,8 @@ public class Player implements Runnable {
     private final Integer[] tokenToSlot;
     private Queue<Integer> queue;
     private boolean notifyTheDealer;
+    private boolean penalty;
+    private boolean point;
 
     /**
      * The class constructor.
@@ -82,6 +84,8 @@ public class Player implements Runnable {
         tokenToSlot = new Integer[3];
         numberOfTokens = 0;
         notifyTheDealer = false;
+        penalty = false;
+        point = false;
     }
 
     /**
@@ -136,6 +140,9 @@ public class Player implements Runnable {
                 dealer.interrupted();
                 notifyTheDealer = false;
             }
+
+            if(point) {point(); point = false;}
+            else if (penalty) {penalty(); penalty = false;}
         }
 
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
@@ -177,7 +184,7 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < 3) {queue.add(slot);}
+        if (queue.size() < 3 & !penalty & !point) {queue.add(slot);}
     }
 
     /**
@@ -197,10 +204,10 @@ public class Player implements Runnable {
     /**
      * Penalize a player and perform other related actions.
      */
-    public synchronized void penalty() 
+    public void penalty() 
     {
-        // try { playerThread.sleep(3000); }
-        // catch (InterruptedException ignored) {}
+        try {Thread.sleep(3000);}
+        catch (InterruptedException ignore) {}
     }
 
     public int getScore() 
@@ -231,5 +238,11 @@ public class Player implements Runnable {
         }
 
         notifyTheDealer = false;
+    }
+
+    public void setState(boolean penalty, boolean point)
+    {
+        this.penalty = penalty;
+        this.point = point;
     }
 }

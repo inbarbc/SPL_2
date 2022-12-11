@@ -43,12 +43,17 @@ public class Dealer implements Runnable {
     private Queue<Player> queue = new LinkedList<>();
     private Integer slots[] = new Integer[3];
 
+    /**
+     * The thread representing the current dealer.
+     */
+    private Thread dealerThread;
+
     public Dealer(Env env, Table table, Player[] players)
      {
         this.env = env;
         this.table = table;
         this.players = players;
-        deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());   
+        deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());       
     }
 
     /**
@@ -57,6 +62,7 @@ public class Dealer implements Runnable {
     @Override
     public void run() 
     {
+        dealerThread = Thread.currentThread();
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
 
         for (Player p : players)
@@ -153,7 +159,7 @@ public class Dealer implements Runnable {
      */
     private void sleepUntilWokenOrTimeout() 
     {
-        try {Thread.sleep(950);}
+        try {dealerThread.sleep(950);}
         catch (InterruptedException e) {CheckingPlayerSet();}
     }
 
@@ -204,7 +210,7 @@ public class Dealer implements Runnable {
 
     public void interrupted()
     {
-        Thread.interrupted();
+        dealerThread.interrupt();
     }
 
     public void CheckingPlayerSet()
@@ -226,11 +232,11 @@ public class Dealer implements Runnable {
                     slots[i] = player.getTokenToSlot(i);
                 }
 
-                player.point();
+                player.setState(false, true);
             }
             else 
             {
-                player.penalty();
+                player.setState(true, false);
             }
         }
     }
