@@ -60,6 +60,9 @@ public class Player implements Runnable {
     private final Integer[] tokenToSlot;
     private Queue<Integer> queue;
     private boolean notifyTheDealer;
+
+    enum State {Penalty,Point,Continue}
+
     private boolean penalty;
     private boolean point;
 
@@ -197,11 +200,12 @@ public class Player implements Runnable {
     {
         removeAllTokensFromTable();
 
-        long time = System.currentTimeMillis() + (1000);
+        long targetTime = System.currentTimeMillis() + (1000);
 
-        while (System.currentTimeMillis() < time)
+        while (System.currentTimeMillis() < targetTime)
         {
-            env.ui.setFreeze(id, time - System.currentTimeMillis());
+            env.ui.setFreeze(id, targetTime - System.currentTimeMillis());
+
             try {Thread.sleep(950);}
             catch (InterruptedException ignore) {}
         }
@@ -216,11 +220,12 @@ public class Player implements Runnable {
      */
     public void penalty() 
     {
-        long time = System.currentTimeMillis() + (3*1000);
+        long targetTime = System.currentTimeMillis() + (3*1000);
 
-        while (System.currentTimeMillis() < time)
+        while (System.currentTimeMillis() < targetTime)
         {
-            env.ui.setFreeze(id, time - System.currentTimeMillis());
+            env.ui.setFreeze(id, targetTime - System.currentTimeMillis());
+
             try {Thread.sleep(950);}
             catch (InterruptedException ignore) {}
         }
