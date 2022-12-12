@@ -126,7 +126,6 @@ public class Player implements Runnable {
 
             while (!terminate) 
             {
-
                 Random random = new Random();
 
                 int max = 11;
@@ -135,8 +134,8 @@ public class Player implements Runnable {
                 keyPressed(random.nextInt((max - min) + 1) + min);
                 keyOperation();
             
-                if (point) {point(); point = false;}
-                else if (penalty) {penalty(); penalty = false;}
+                if (point) {point(); point = false; removeAllTokensFromTable();}
+                else if (penalty) {penalty(); penalty = false; removeAllTokensFromTable();}
             
                 // try {synchronized (this) {wait();}}
                 // catch (InterruptedException ignored) {}
@@ -253,7 +252,7 @@ public class Player implements Runnable {
         else if (state == State.Point) {point = true;}
     }
 
-    public void keyOperation()
+    public synchronized void keyOperation()
     {
         if (!queue.isEmpty())
         {

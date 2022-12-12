@@ -77,8 +77,7 @@ public class Dealer implements Runnable {
         {
             placeCardsOnTable();
             updateTimerDisplay(true);
-            waitForTheDealer = false;  
-            table.hints();     
+            waitForTheDealer = false;          
             timerLoop();
             waitForTheDealer = true;
             removeAllTokensFromTable();
@@ -147,20 +146,25 @@ public class Dealer implements Runnable {
     private void placeCardsOnTable() 
     {
         Collections.shuffle(deck); // shuffle deck
+        boolean hint = false;
 
         int slot = 0;
-        int card = 0; 
 
-        while (slot < table.slotToCard.length && !deck.isEmpty()) 
+        while (slot < table.slotToCard.length && !deck.isEmpty())
         {
             if (table.slotToCard[slot] == null)
             {
-                table.placeCard(deck.get(card), slot);
-                deck.remove(deck.get(card));
-                card++;
+                table.placeCard(deck.get(0), slot);
+                deck.remove(deck.get(0));
+                hint = true;
             }
             slot++;
-        }             
+        }     
+        if (hint) 
+        {
+            table.hints();
+            System.out.println("\n");
+        }        
     }
 
     /**
