@@ -42,7 +42,8 @@ public class Dealer implements Runnable {
     private long reshuffleTime = Long.MAX_VALUE;
 
     private Queue<Player> queue = new LinkedList<>();
-    private Integer set[] = new Integer[3];
+    private Integer[] set = new Integer[3];
+    private boolean waitForTheDealer = true;
 
     /**
      * The thread representing the current dealer.
@@ -75,8 +76,11 @@ public class Dealer implements Runnable {
         while (!shouldFinish()) 
         {
             placeCardsOnTable();
+            updateTimerDisplay(true);
+            waitForTheDealer = false;  
+            table.hints();     
             timerLoop();
-            updateTimerDisplay(false);
+            waitForTheDealer = true;
             removeAllTokensFromTable();
             removeAllCardsFromTable();
         }
@@ -89,7 +93,7 @@ public class Dealer implements Runnable {
      */
     private void timerLoop() 
     {
-        reshuffleTime = System.currentTimeMillis() + (61*1000);
+        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;
 
         while (!terminate && System.currentTimeMillis() < reshuffleTime) 
         {
@@ -105,7 +109,11 @@ public class Dealer implements Runnable {
      */
     public void terminate() 
     {
-        // TODO implement
+        for (Player player : players)
+        {
+            player.terminate();
+        }
+        terminate = true;
     }
 
     /**
@@ -123,7 +131,7 @@ public class Dealer implements Runnable {
      */
     private void removeCardsFromTable() 
     {
-        if (set[0] != null)
+        if (set[0] != null & set[1] != null & set[2] != null)
         {
             for (int i = 0; i < set.length; i++)
             {
@@ -152,7 +160,7 @@ public class Dealer implements Runnable {
                 card++;
             }
             slot++;
-        }
+        }             
     }
 
     /**
@@ -197,7 +205,22 @@ public class Dealer implements Runnable {
      */
     private void announceWinners()
     {
+        int m = 0;
+        int s = 0;
+        for (Player player : players)
+        {
+            if (player.getScore() == m) {s++;}
+            else if (player.getScore() > m) {m = player.getScore(); s = 1;}
+        }
 
+        int i = 0;
+        int[] playersId = new int[s];
+        for (Player player : players)
+        {
+            if (player.getScore() == m) {playersId[i] = player.id; i++;}
+        }
+
+        env.ui.announceWinner(playersId);
     }
 
     public void addToQueue(Player player)
@@ -228,27 +251,35 @@ public class Dealer implements Runnable {
 
     public void CheckingPlayerSet(Player player)
     {
-        int[] cards = new int[3];
-
-        for (int i = 0; i < cards.length; i++)
+        if (player.getTokensToSlots().size() == 3)
         {
-            cards[i] = table.slotToCard[player.getTokenToSlot(i)];
-        }
+            int[] cards = new int[3];
 
-        if (env.util.testSet(cards))
-        {
             for (int i = 0; i < cards.length; i++)
             {
-                set[i]= player.getTokenToSlot(i);
+                cards[i] = table.slotToCard[player.getTokensToSlots().get(i)];
             }
+    
+            if (env.util.testSet(cards))
+            {
+                for (int i = 0; i < cards.length; i++)
+                {
+                    set[i]= player.getTokensToSlots().get(i);
+                }
+    
+                player.setState(State.Point);
+                removeTokensFromTable();
+                updateTimerDisplay(true);
+            }
+            else 
+            {
+                player.setState(State.Penalty);
+            }
+        }
+    }
 
-            player.setState(State.Point);
-            removeTokensFromTable();
-            updateTimerDisplay(true);
-        }
-        else 
-        {
-            player.setState(State.Penalty);
-        }
+    public boolean waitForTheDealer()
+    {
+        return waitForTheDealer;
     }
 }

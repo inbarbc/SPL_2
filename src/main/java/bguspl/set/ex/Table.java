@@ -91,14 +91,11 @@ public class Table {
      */
     public void placeCard(int card, int slot) 
     {
-        try {
-            Thread.sleep(env.config.tableDelayMillis);
-        } catch (InterruptedException ignored) {}
+        try {Thread.sleep(env.config.tableDelayMillis);}
+        catch (InterruptedException ignored) {}
 
         cardToSlot[card] = slot;
         slotToCard[slot] = card;
-
-        // TODO implement
 
         env.ui.placeCard(card, slot);
     }
@@ -109,11 +106,8 @@ public class Table {
      */
     public void removeCard(int slot) 
     {
-        try {
-            Thread.sleep(env.config.tableDelayMillis);
-        } catch (InterruptedException ignored) {}
-
-        // TODO implement
+        try {Thread.sleep(env.config.tableDelayMillis);}
+        catch (InterruptedException ignored) {}
 
         slotToCard[slot] = null;
         env.ui.removeCard(slot);
@@ -126,8 +120,6 @@ public class Table {
      */
     public void placeToken(int player, int slot) 
     {
-        // TODO implement
-
         env.ui.placeToken(player, slot);
     }
 
@@ -139,9 +131,7 @@ public class Table {
      */
     public boolean removeToken(int player, int slot) 
     {
-        // TODO implement
-        env.ui.removeToken(player,slot);
-        
+        env.ui.removeToken(player,slot);    
         return false;
     }
 }

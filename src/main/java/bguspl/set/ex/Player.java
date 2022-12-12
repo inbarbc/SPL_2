@@ -7,6 +7,7 @@ import bguspl.set.Env;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.List;
+import java.util.Random;
 
 /**
  * This class manages the players' threads and data
@@ -61,9 +62,9 @@ public class Player implements Runnable {
     private final List<Integer> tokenToSlot;
     private Queue<Integer> queue;
     private boolean notifyTheDealer;
-    enum State {Penalty,Point}
     private boolean penalty;
     private boolean point;
+    enum State {Penalty,Point}
 
     /**
      * The class constructor.
@@ -100,39 +101,12 @@ public class Player implements Runnable {
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + "starting.");
         if (!human) createArtificialIntelligence();
 
-        while (!terminate) 
+        while (!terminate)
         {
-            if (!queue.isEmpty())
-            {
-                Integer slot = queue.remove();
-                boolean toPlaceToken = true;
-
-                if (tokenToSlot.contains(slot))
-                {
-                    table.removeToken(id, slot);
-                    tokenToSlot.remove(slot);
-                    toPlaceToken = false;
-                    notifyTheDealer = false;
-                }
-
-                if (toPlaceToken & tokenToSlot.size() < 3)
-                {
-                    table.placeToken(id, slot);
-                    tokenToSlot.add(slot);
-                    if (tokenToSlot.size() == 3) {notifyTheDealer = true;} 
-                }
-            
-                if (notifyTheDealer) 
-                {
-                    dealer.addToQueue(this);
-                    dealer.interrupt();
-                    notifyTheDealer = false;
-                }
-            }
+            keyOperation();
 
             if (point) {point(); point = false;}
             else if (penalty) {penalty(); penalty = false;}
-
         }
 
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
@@ -146,13 +120,26 @@ public class Player implements Runnable {
     private void createArtificialIntelligence() 
     {
         // note: this is a very very smart AI (!)
-        aiThread = new Thread(() -> {
+        aiThread = new Thread(() -> 
+        {
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
+
             while (!terminate) 
             {
-                // TODO implement player key press simulator
-                try {synchronized (this) {wait();}}
-                catch (InterruptedException ignored) {}
+
+                Random random = new Random();
+
+                int max = 11;
+                int min = 0;
+
+                keyPressed(random.nextInt((max - min) + 1) + min);
+                keyOperation();
+            
+                if (point) {point(); point = false;}
+                else if (penalty) {penalty(); penalty = false;}
+            
+                // try {synchronized (this) {wait();}}
+                // catch (InterruptedException ignored) {}
             }
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -164,7 +151,7 @@ public class Player implements Runnable {
      */
     public void terminate() 
     {
-        // TODO implement
+        terminate = true;
     }
 
     /**
@@ -174,7 +161,11 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < 3 & !penalty & !point) {queue.add(slot);}
+        if (queue.size() < 3 & !dealer.waitForTheDealer()
+         & !penalty & !point &table.slotToCard[slot] != null)
+        {
+            queue.add(slot);
+        }
     }
 
     /**
@@ -185,6 +176,9 @@ public class Player implements Runnable {
      */
     public void point() 
     {
+        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
+        env.ui.setScore(id, ++score);
+
         removeAllTokensFromTable();
 
         long targetTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
@@ -197,9 +191,6 @@ public class Player implements Runnable {
             catch (InterruptedException ignore) {}
         }
         env.ui.setFreeze(id, 0);
-
-        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
-        env.ui.setScore(id, ++score);
     }
 
     /**
@@ -229,9 +220,9 @@ public class Player implements Runnable {
         return numberOfTokens;
     }
 
-    public Integer getTokenToSlot(int token)
+    public List<Integer> getTokensToSlots()
     {
-        return tokenToSlot.get(token);
+        return tokenToSlot;
     }
 
     public void removeAllTokensFromTable()
@@ -258,7 +249,38 @@ public class Player implements Runnable {
 
     public void setState(State state)
     {
-        if (state == State.Penalty) {this.penalty = true;}
-        else if (state == State.Point) {this.point = true;}
+        if (state == State.Penalty) {penalty = true;}
+        else if (state == State.Point) {point = true;}
+    }
+
+    public void keyOperation()
+    {
+        if (!queue.isEmpty())
+        {
+            Integer slot = queue.remove();
+            boolean toPlaceToken = true;
+
+            if (tokenToSlot.contains(slot))
+            {
+                table.removeToken(id, slot);
+                tokenToSlot.remove(slot);
+                toPlaceToken = false;
+                notifyTheDealer = false;
+            }
+
+            if (toPlaceToken & tokenToSlot.size() < 3)
+            {
+                table.placeToken(id, slot);
+                tokenToSlot.add(slot);
+                if (tokenToSlot.size() == 3) {notifyTheDealer = true;} 
+            }
+        
+            if (notifyTheDealer) 
+            {
+                dealer.addToQueue(this); 
+                dealer.interrupt();
+                notifyTheDealer = false;
+            }
+        }       
     }
 }
