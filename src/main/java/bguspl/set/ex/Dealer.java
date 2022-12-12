@@ -92,8 +92,6 @@ public class Dealer implements Runnable {
      */
     private void timerLoop() 
     {
-        reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;
-
         while (!terminate && System.currentTimeMillis() < reshuffleTime) 
         {
             sleepUntilWokenOrTimeout();
@@ -163,7 +161,7 @@ public class Dealer implements Runnable {
         if (hint) 
         {
             table.hints();
-            System.out.println("\n");
+            System.out.println("-----");
         }        
     }
 

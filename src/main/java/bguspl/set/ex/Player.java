@@ -57,17 +57,17 @@ public class Player implements Runnable {
      */
     private int score;
 
-    private int numberOfTokens;
     private final Dealer dealer;
     private List<Integer> tokenToSlot;
+    private List<Integer> set;
     private Queue<Integer> queue;
+    private int numberOfTokens;
     private boolean notifyTheDealer;
     private boolean penalty;
     private boolean point;
-    enum State {Penalty,Point}
-
     private boolean hint;
     private boolean random;
+    enum State {Penalty,Point}
 
     /**
      * The class constructor.
@@ -86,13 +86,13 @@ public class Player implements Runnable {
         this.id = id;
         this.human = human;
 
-        queue = new LinkedList<>();
         tokenToSlot = new LinkedList<>();
+        set = new LinkedList<>();
+        queue = new LinkedList<>();
         numberOfTokens = 0;
         notifyTheDealer = false;
         penalty = false;
         point = false;
-
         hint = false;
         random = false;
     }
@@ -105,9 +105,9 @@ public class Player implements Runnable {
     {
         playerThread = Thread.currentThread();
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + "starting.");
-        if (!human) createArtificialIntelligence();
+        if (!human) {createArtificialIntelligence();}
 
-        while (!terminate)
+        while (!terminate & human)
         {
             keyOperation();
 
@@ -136,8 +136,7 @@ public class Player implements Runnable {
                 {
                     Random r = new Random();
                     int bound = 10;
-
-                    if (r.nextInt(bound) > 7) {random = true;}
+                    if (r.nextInt(bound) > 4) {random = true;}
                     else {hint = true;}
                 }
 
@@ -149,11 +148,8 @@ public class Player implements Runnable {
 
                 keyOperation();
             
-                if (point) {point(); point = false; removeAllTokensFromTable();}
+                if (point) {point(); point = false;}
                 else if (penalty) {penalty(); penalty = false; removeAllTokensFromTable();}
-            
-                // try {synchronized (this) {wait();}}
-                // catch (InterruptedException ignored) {}
             }
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
@@ -300,38 +296,40 @@ public class Player implements Runnable {
 
     public void hint()
     {
-        if (tokenToSlot.size() == 0)
+        if (set.size() == 0)
         {
-            tokenToSlot = table.getSet();
-            if (tokenToSlot == null) {hint = false; random = true; tokenToSlot = new LinkedList<>();}
-            else {keyPressed(tokenToSlot.get(0));}
+            set = table.getSet();
+            if (set == null) {hint = false; random = true; set = new LinkedList<>();}
+            else {keyPressed(set.get(0)); set.remove(0);}
         }
-        else if (tokenToSlot.size() > 0)
+        else if (set.size() > 0)
         {
-            if (tokenToSlot.size() == 1) {hint = false;}
-            keyPressed(tokenToSlot.get(0));
+            if (set.size() == 1) {hint = false;}
+            keyPressed(set.get(0));
+            set.remove(0);
         }
+
     }
 
     public void random()
     {
-        if (tokenToSlot.size() == 0)
+        if (set.size() == 0)
         {
             Random r = new Random();
             int bound = 11;
 
-            while(tokenToSlot.size() < 3)
+            while(set.size() < 3)
             {
                 int n = r.nextInt(bound);
-                if (!tokenToSlot.contains(n)) {tokenToSlot.add(n);}
+                if (!set.contains(n)) {set.add(n);}
             }
-
-            keyPressed(tokenToSlot.get(0));
         }
-        else if (tokenToSlot.size() > 0)
+        else if (set.size() > 0)
         {
-            if (tokenToSlot.size() == 1) {random = false;}
-            keyPressed(tokenToSlot.get(0));
+            if (set.size() == 1) {random = false;}
         }
+
+        keyPressed(set.get(0));
+        set.remove(0);
     }
 }
