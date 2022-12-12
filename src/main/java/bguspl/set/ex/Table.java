@@ -3,6 +3,7 @@ package bguspl.set.ex;
 import bguspl.set.Env;
 
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -133,5 +134,24 @@ public class Table {
     {
         env.ui.removeToken(player,slot);    
         return false;
+    }
+
+    public List<Integer> getSet() 
+    {
+        List<Integer> deck = Arrays.stream(slotToCard).filter(Objects::nonNull).collect(Collectors.toList());       
+        List<int[]> sets = env.util.findSets(deck, 1);
+
+        if (sets == null || sets.isEmpty()) {return null;}
+        else 
+        {
+            List<Integer> set = new LinkedList<>();
+
+            for (int i = 0; i < sets.get(0).length; i++)
+            {
+                set.add(cardToSlot[sets.get(0)[i]]);
+            }
+    
+            return set;
+        }
     }
 }

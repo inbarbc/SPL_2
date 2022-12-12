@@ -59,12 +59,15 @@ public class Player implements Runnable {
 
     private int numberOfTokens;
     private final Dealer dealer;
-    private final List<Integer> tokenToSlot;
+    private List<Integer> tokenToSlot;
     private Queue<Integer> queue;
     private boolean notifyTheDealer;
     private boolean penalty;
     private boolean point;
     enum State {Penalty,Point}
+
+    private boolean hint;
+    private boolean random;
 
     /**
      * The class constructor.
@@ -89,6 +92,9 @@ public class Player implements Runnable {
         notifyTheDealer = false;
         penalty = false;
         point = false;
+
+        hint = false;
+        random = false;
     }
 
     /**
@@ -126,12 +132,21 @@ public class Player implements Runnable {
 
             while (!terminate) 
             {
-                Random random = new Random();
+                if (!hint & !random)
+                {
+                    Random r = new Random();
+                    int bound = 10;
 
-                int max = 11;
-                int min = 0;
+                    if (r.nextInt(bound) > 7) {random = true;}
+                    else {hint = true;}
+                }
 
-                keyPressed(random.nextInt((max - min) + 1) + min);
+                if (hint) hint();
+                else {random();}
+
+                try {Thread.sleep(150);}
+                catch (InterruptedException ignore) {}
+
                 keyOperation();
             
                 if (point) {point(); point = false; removeAllTokensFromTable();}
@@ -160,8 +175,8 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < 3 & !dealer.waitForTheDealer()
-         & !penalty & !point &table.slotToCard[slot] != null)
+        if (queue.size() < 3 & !dealer.waitForTheDealer() &
+        !penalty & !point & table.slotToCard[slot] != null)
         {
             queue.add(slot);
         }
@@ -252,7 +267,7 @@ public class Player implements Runnable {
         else if (state == State.Point) {point = true;}
     }
 
-    public synchronized void keyOperation()
+    public void keyOperation()
     {
         if (!queue.isEmpty())
         {
@@ -281,5 +296,42 @@ public class Player implements Runnable {
                 notifyTheDealer = false;
             }
         }       
+    }
+
+    public void hint()
+    {
+        if (tokenToSlot.size() == 0)
+        {
+            tokenToSlot = table.getSet();
+            if (tokenToSlot == null) {hint = false; random = true; tokenToSlot = new LinkedList<>();}
+            else {keyPressed(tokenToSlot.get(0));}
+        }
+        else if (tokenToSlot.size() > 0)
+        {
+            if (tokenToSlot.size() == 1) {hint = false;}
+            keyPressed(tokenToSlot.get(0));
+        }
+    }
+
+    public void random()
+    {
+        if (tokenToSlot.size() == 0)
+        {
+            Random r = new Random();
+            int bound = 11;
+
+            while(tokenToSlot.size() < 3)
+            {
+                int n = r.nextInt(bound);
+                if (!tokenToSlot.contains(n)) {tokenToSlot.add(n);}
+            }
+
+            keyPressed(tokenToSlot.get(0));
+        }
+        else if (tokenToSlot.size() > 0)
+        {
+            if (tokenToSlot.size() == 1) {random = false;}
+            keyPressed(tokenToSlot.get(0));
+        }
     }
 }
