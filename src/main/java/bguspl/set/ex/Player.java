@@ -6,6 +6,7 @@ import bguspl.set.Env;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.List;
 
 /**
  * This class manages the players' threads and data
@@ -57,12 +58,10 @@ public class Player implements Runnable {
 
     private int numberOfTokens;
     private final Dealer dealer;
-    private final Integer[] tokenToSlot;
+    private final List<Integer> tokenToSlot;
     private Queue<Integer> queue;
     private boolean notifyTheDealer;
-
-    enum State {Penalty,Point,Continue}
-
+    enum State {Penalty,Point}
     private boolean penalty;
     private boolean point;
 
@@ -84,7 +83,7 @@ public class Player implements Runnable {
         this.human = human;
 
         queue = new LinkedList<>();
-        tokenToSlot = new Integer[3];
+        tokenToSlot = new LinkedList<>();
         numberOfTokens = 0;
         notifyTheDealer = false;
         penalty = false;
@@ -105,47 +104,35 @@ public class Player implements Runnable {
         {
             if (!queue.isEmpty())
             {
-                int slot = queue.remove();
+                Integer slot = queue.remove();
                 boolean toPlaceToken = true;
 
-                for (int i = 0; i < tokenToSlot.length; i++)
+                if (tokenToSlot.contains(slot))
                 {
-                    if (tokenToSlot[i] != null && tokenToSlot[i] == slot)
-                    {
-                        table.removeToken(id, slot);
-                        tokenToSlot[i] = null;
-                        toPlaceToken = false;
-                        numberOfTokens--;
-                        notifyTheDealer = false;
-                        break;
-                    }
+                    table.removeToken(id, slot);
+                    tokenToSlot.remove(slot);
+                    toPlaceToken = false;
+                    notifyTheDealer = false;
                 }
-        
-                if (toPlaceToken)
-                {
-                    for (int i = 0; i < tokenToSlot.length; i++)
-                    {
-                        if (tokenToSlot[i] == null)
-                        {
-                            table.placeToken(id, slot);
-                            tokenToSlot[i] = slot;
-                            numberOfTokens++;  
-                            if (numberOfTokens == 3) {notifyTheDealer = true;}   
-                            break;
-                        }                   
-                    }
-                }
-            }
 
-            if (notifyTheDealer) 
-            {
-                dealer.addToQueue(this);
-                dealer.interrupt();
-                notifyTheDealer = false;
+                if (toPlaceToken & tokenToSlot.size() < 3)
+                {
+                    table.placeToken(id, slot);
+                    tokenToSlot.add(slot);
+                    if (tokenToSlot.size() == 3) {notifyTheDealer = true;} 
+                }
+            
+                if (notifyTheDealer) 
+                {
+                    dealer.addToQueue(this);
+                    dealer.interrupt();
+                    notifyTheDealer = false;
+                }
             }
 
             if (point) {point(); point = false;}
             else if (penalty) {penalty(); penalty = false;}
+
         }
 
         if (!human) try { aiThread.join(); } catch (InterruptedException ignored) {}
@@ -200,7 +187,7 @@ public class Player implements Runnable {
     {
         removeAllTokensFromTable();
 
-        long targetTime = System.currentTimeMillis() + (1000);
+        long targetTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
 
         while (System.currentTimeMillis() < targetTime)
         {
@@ -220,7 +207,7 @@ public class Player implements Runnable {
      */
     public void penalty() 
     {
-        long targetTime = System.currentTimeMillis() + (3*1000);
+        long targetTime = System.currentTimeMillis() + env.config.penaltyFreezeMillis;
 
         while (System.currentTimeMillis() < targetTime)
         {
@@ -244,43 +231,34 @@ public class Player implements Runnable {
 
     public Integer getTokenToSlot(int token)
     {
-        return tokenToSlot[token];
+        return tokenToSlot.get(token);
     }
 
     public void removeAllTokensFromTable()
     {
-        for (int i = 0; i < tokenToSlot.length; i++)
+        for (int i = 0; i < tokenToSlot.size(); i++)
         {
-            if (tokenToSlot[i] != null)
-            {
-                table.removeToken(id, tokenToSlot[i]);
-                tokenToSlot[i] = null;
-                numberOfTokens--;
-            }
+            table.removeToken(id, tokenToSlot.get(i));
         }
-
+        tokenToSlot.clear();
         notifyTheDealer = false;
     }
 
-    public void removeTokensFromTable(Integer[] slots)
+    public void removeTokensFromTable(Integer set[])
     {
-        for (int i = 0; i < slots.length; i++)
+        for (int i = 0; i < set.length; i++)
         {
-            for (int j = 0; j < tokenToSlot.length; j++)
+            if (tokenToSlot.contains(set[i]))
             {
-                if(tokenToSlot[j] == slots[i])
-                {
-                    table.removeToken(id, tokenToSlot[j]);
-                    tokenToSlot[j] = null;
-                    numberOfTokens--;
-                }
+                table.removeToken(id, set[i]);
+                tokenToSlot.remove(set[i]);
             }
         }
     }
 
-    public void setState(boolean penalty, boolean point)
+    public void setState(State state)
     {
-        this.penalty = penalty;
-        this.point = point;
+        if (state == State.Penalty) {this.penalty = true;}
+        else if (state == State.Point) {this.point = true;}
     }
 }

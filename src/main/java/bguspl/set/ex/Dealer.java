@@ -1,6 +1,7 @@
 package bguspl.set.ex;
 
 import bguspl.set.Env;
+import bguspl.set.ex.Player.State;
 
 import java.util.List;
 import java.util.logging.Level;
@@ -41,7 +42,7 @@ public class Dealer implements Runnable {
     private long reshuffleTime = Long.MAX_VALUE;
 
     private Queue<Player> queue = new LinkedList<>();
-    private Integer slots[] = new Integer[3];
+    private Integer set[] = new Integer[3];
 
     /**
      * The thread representing the current dealer.
@@ -122,12 +123,12 @@ public class Dealer implements Runnable {
      */
     private void removeCardsFromTable() 
     {
-        if (slots[0] != null)
+        if (set[0] != null)
         {
-            for (int i = 0; i < slots.length; i++)
+            for (int i = 0; i < set.length; i++)
             {
-                table.removeCard(slots[i]);
-                slots[i] = null;
+                table.removeCard(set[i]);
+                set[i] = null;
             }
         }
     }
@@ -159,8 +160,12 @@ public class Dealer implements Runnable {
      */
     private void sleepUntilWokenOrTimeout() 
     {
-        try {dealerThread.sleep(950);}
-        catch (InterruptedException e) {CheckingPlayerSet();}
+        try 
+        {
+             if (queue.isEmpty()) {dealerThread.sleep(950);}
+             else {CheckingPlayerSet(queue.remove());}
+        }
+        catch (InterruptedException e) {if (!queue.isEmpty()) {CheckingPlayerSet(queue.remove());}}
     }
 
     /**
@@ -168,7 +173,7 @@ public class Dealer implements Runnable {
      */
     private void updateTimerDisplay(boolean reset) 
     {
-        if (reset) {reshuffleTime = System.currentTimeMillis() + (60*1000);}       
+        if (reset) {reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;}       
         env.ui.setCountdown(reshuffleTime-System.currentTimeMillis(),false);
     }
 
@@ -217,37 +222,33 @@ public class Dealer implements Runnable {
     {
         for (Player player : players)
         {
-            player.removeTokensFromTable(slots);
+            player.removeTokensFromTable(set);
         }
     }
 
-    public void CheckingPlayerSet()
+    public void CheckingPlayerSet(Player player)
     {
-        if (!queue.isEmpty())
-        {
-            Player player = queue.remove();
-            int[] cards = new int[3];
+        int[] cards = new int[3];
 
+        for (int i = 0; i < cards.length; i++)
+        {
+            cards[i] = table.slotToCard[player.getTokenToSlot(i)];
+        }
+
+        if (env.util.testSet(cards))
+        {
             for (int i = 0; i < cards.length; i++)
             {
-                cards[i] = table.slotToCard[player.getTokenToSlot(i)];
+                set[i]= player.getTokenToSlot(i);
             }
 
-            if (env.util.testSet(cards))
-            {
-                for (int i = 0; i < cards.length; i++)
-                {
-                    slots[i] = player.getTokenToSlot(i);
-                }
-
-                player.setState(false, true);
-                removeTokensFromTable();
-                updateTimerDisplay(true);
-            }
-            else 
-            {
-                player.setState(true, false);
-            }
+            player.setState(State.Point);
+            removeTokensFromTable();
+            updateTimerDisplay(true);
+        }
+        else 
+        {
+            player.setState(State.Penalty);
         }
     }
 }
