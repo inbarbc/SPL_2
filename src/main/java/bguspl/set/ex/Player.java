@@ -220,8 +220,8 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < dealer.sizeOfSet & !dealer.waitForTheDealerToReshuffle() &
-        !penalty & !point & table.slotToCard[slot] != null)
+        if (queue.size() < dealer.Set & !penalty & !point
+        & table.slotToCard[slot] != null & !dealer.waitForTheDealerToReshuffle())
         {
             queue.add(slot);
         }
@@ -321,11 +321,11 @@ public class Player implements Runnable {
                 toPlaceToken = false;
             }
 
-            if (toPlaceToken & tokenToSlot.size() < dealer.sizeOfSet)
+            if (toPlaceToken & tokenToSlot.size() < dealer.Set & !dealer.waitForTheDealerToReshuffle())
             {
                 table.placeToken(id, slot);
                 tokenToSlot.add(slot);
-                if (tokenToSlot.size() == dealer.sizeOfSet) 
+                if (tokenToSlot.size() == dealer.Set) 
                 {
                     notifyTheDealer = true; 
                     announcementTime = System.currentTimeMillis();

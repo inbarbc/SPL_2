@@ -6,6 +6,10 @@ import bguspl.set.ex.Player.State;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import javax.lang.model.util.ElementScanner14;
+import javax.print.FlavorException;
+
 import java.security.spec.EncodedKeySpec;
 import java.util.*;
 
@@ -43,11 +47,14 @@ public class Dealer implements Runnable {
     private Long[] array;
     private Integer[] set;
     private boolean waitForTheDealerToReshuffle;
+    private boolean warn;
+    private long timer;
  
     public final int Set = 3;
     public final int theFirstObject = 0;
     public final long minimalTimeGap = 980;
-    public final long oneSecond = 950;
+    public final long oneSecond = 950; 
+    public final long tenMiliSecond = 50; 
     public final long resetTime = 0;
 
     public Dealer(Env env, Table table, Player[] players)
@@ -60,6 +67,8 @@ public class Dealer implements Runnable {
         array = new Long[players.length];
         set = new Integer[3];
         waitForTheDealerToReshuffle = true;
+        timer = System.currentTimeMillis();
+        warn = false;
     }
 
     /**
@@ -100,13 +109,47 @@ public class Dealer implements Runnable {
         waitForTheDealerToReshuffle = false;
     }
 
+    private void reshuffle()
+    {
+        removeAllTokensFromTable();
+        removeAllCardsFromTable();
+        placeCardsOnTable();
+        updateTimerDisplay(true);
+    }
+
+    private List<Integer> arrayToList(Integer[] array)
+    {
+        List<Integer> list = new LinkedList<>();
+
+        for (int i = 0; i < array.length; i++)
+        {
+            if (array[i] != null) {list.add(array[i]);}
+        }
+
+        return list;
+    }
+
     /**
      * The inner loop of the dealer thread that runs as long as the countdown did not time out.
      */
     private void timerLoop() 
     {
-        while (!terminate && reshuffleTime - System.currentTimeMillis() > minimalTimeGap) 
-        {
+        while (!terminate && reshuffleTime > System.currentTimeMillis()) 
+        {     
+            if (env.config.turnTimeoutMillis <= 0)
+            {
+                List<Integer> list = arrayToList(table.slotToCard);
+
+                boolean notify = false;
+                while (env.util.findSets(list, 1).size() == 0)
+                {
+                    waitForTheDealerToReshuffle = true;
+                    reshuffle();
+                    list = arrayToList(table.slotToCard);
+                    notify = true;
+                }
+                if (notify) {Notify();}
+            }
             sleepUntilWokenOrTimeout();
             updateTimerDisplay(false);
         }
@@ -193,7 +236,11 @@ public class Dealer implements Runnable {
     {
         try 
         {
-            if (isTheArrayEmpty()) {wait(oneSecond);}
+            if (isTheArrayEmpty())
+            {
+                if (warn) {wait(tenMiliSecond);}
+                else {wait(oneSecond);}
+            }
             else {CheckingPlayerSet(ThePlayerWhoAnnouncedFirst());}
         }
         catch (InterruptedException ignore) {}
@@ -226,8 +273,19 @@ public class Dealer implements Runnable {
      */
     private void updateTimerDisplay(boolean reset) 
     {
-        if (reset) {reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis;}       
-        env.ui.setCountdown(reshuffleTime-System.currentTimeMillis(),false);
+        if (env.config.turnTimeoutMillis > 0)
+        {
+            if (reset) {reshuffleTime = System.currentTimeMillis() + env.config.turnTimeoutMillis; warn = false;}        
+            long countdown = reshuffleTime-System.currentTimeMillis();
+            if (countdown < env.config.turnTimeoutWarningMillis) {warn = true;}
+            if (countdown < 0) {countdown = 0;}
+            env.ui.setCountdown(countdown,warn);
+        }
+        else if (env.config.turnTimeoutMillis == 0)
+        {
+            if (reset) {timer = System.currentTimeMillis();}
+            env.ui.setElapsed(System.currentTimeMillis() - timer);
+        }
     }
 
     /**
