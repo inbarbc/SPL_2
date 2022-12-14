@@ -42,11 +42,11 @@ public class Dealer implements Runnable {
 
     private Long[] array;
     private Integer[] set;
-    private boolean WaitForTheDealerToReshuffle;
+    private boolean waitForTheDealerToReshuffle;
  
-    public final int sizeOfSet = 3;
+    public final int Set = 3;
     public final int theFirstObject = 0;
-    public final long minimalTimeGap = 1000;
+    public final long minimalTimeGap = 980;
     public final long oneSecond = 950;
     public final long resetTime = 0;
 
@@ -59,7 +59,7 @@ public class Dealer implements Runnable {
         
         array = new Long[players.length];
         set = new Integer[3];
-        WaitForTheDealerToReshuffle = true;
+        waitForTheDealerToReshuffle = true;
     }
 
     /**
@@ -78,13 +78,12 @@ public class Dealer implements Runnable {
 
         while (!shouldFinish()) 
         {
-            WaitForTheDealerToReshuffle = true;
+            waitForTheDealerToReshuffle = true;
             placeCardsOnTable();
             updateTimerDisplay(true);
-            WaitForTheDealerToReshuffle = false;
             Notify();     
             timerLoop();
-            WaitForTheDealerToReshuffle = true;
+            waitForTheDealerToReshuffle = true;
             removeAllTokensFromTable();
             removeAllCardsFromTable();
         }
@@ -98,6 +97,7 @@ public class Dealer implements Runnable {
         {
             synchronized (player) {player.notify();}
         }
+        waitForTheDealerToReshuffle = false;
     }
 
     /**
@@ -166,10 +166,10 @@ public class Dealer implements Runnable {
             }
             slot++;
         }   
-        if (!IsThereASetInTheRemainingCards()) {terminate = true;} 
+        if (!isThereASetInTheRemainingCards()) {terminate = true;} 
     }
 
-    private boolean IsThereASetInTheRemainingCards()
+    private boolean isThereASetInTheRemainingCards()
     {
         List<Integer> cards = new LinkedList<>();
 
@@ -295,11 +295,20 @@ public class Dealer implements Runnable {
         }
     }
 
+    public boolean areTheCardsAvailable(Player player)
+    {
+        for (int i = 0; i < player.getTokensToSlots().size(); i++)
+        {
+           if (table.slotToCard[player.getTokensToSlots().get(i)] == null) {return false;}
+        }
+        return true;
+    }
+
     public void CheckingPlayerSet(int id)
     {      
-        if (players[id].getTokensToSlots().size() == sizeOfSet)
+        if (players[id].getTokensToSlots().size() == Set & areTheCardsAvailable(players[id]))
         {
-            int[] cards = new int[sizeOfSet];
+            int[] cards = new int[Set];
 
             for (int i = 0; i < cards.length; i++)
             {
@@ -318,19 +327,15 @@ public class Dealer implements Runnable {
                 players[id].setState(State.Point);
                 updateTimerDisplay(true);
             }
-            else 
-            {
-                players[id].setState(State.Penalty);
-            }
+            else {players[id].setState(State.Penalty);}
         }
         else {players[id].setState(State.Continue);}
+        players[id].getThread().interrupt();
         array[id] = null;
-
-        synchronized (players[id]) {players[id].notify();}
     }
 
-    public boolean WaitForTheDealerToReshuffle()
+    public boolean waitForTheDealerToReshuffle()
     {
-        return WaitForTheDealerToReshuffle;
+        return waitForTheDealerToReshuffle;
     }
 }

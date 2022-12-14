@@ -61,7 +61,6 @@ public class Player implements Runnable {
     private List<Integer> tokenToSlot;
     private Integer[] set;
     private Queue<Integer> queue;
-    private int numberOfTokens;
     private Long announcementTime;
     private boolean notifyTheDealer;
     private boolean waitForTheDealer;
@@ -89,7 +88,6 @@ public class Player implements Runnable {
         tokenToSlot = new LinkedList<>();
         set = new Integer[3];
         queue = new LinkedList<>();
-        numberOfTokens = 0;
         announcementTime = null;
         notifyTheDealer = false;
         waitForTheDealer = false;
@@ -113,12 +111,9 @@ public class Player implements Runnable {
 
             if (waitForTheDealer)
             {
-                synchronized (this)
-                {
-                    try {wait();}
-                    catch (InterruptedException ignore) {}                  
-                    waitForTheDealer = false;
-                }
+                try {playerThread.sleep(dealer.oneSecond);}
+                catch (InterruptedException ignore) {}
+                waitForTheDealer = false;
             }
 
             if (point) {point(); point = false;}
@@ -135,7 +130,6 @@ public class Player implements Runnable {
      */
     private void createArtificialIntelligence() 
     {
-        // note: this is a very very smart AI (!)
         aiThread = new Thread(() -> 
         {
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
@@ -144,7 +138,7 @@ public class Player implements Runnable {
 
             while (!terminate) 
             {
-                if (dealer.WaitForTheDealerToReshuffle())
+                if (dealer.waitForTheDealerToReshuffle())
                 {
                     synchronized (this)
                     {
@@ -174,19 +168,23 @@ public class Player implements Runnable {
 
                 if (waitForTheDealer)
                 {
-                    synchronized (this)
-                    {
-                        try {wait(dealer.oneSecond);}
-                        catch (InterruptedException ignore) {}
-                        waitForTheDealer = false;
-                    }
-                }                            
+                    try {playerThread.sleep(dealer.oneSecond);}
+                    catch (InterruptedException ignore) {}
+                    waitForTheDealer = false;
+                }
+                    
                 if (point) {point(); point = false;}
                 else if (penalty) {penalty(); penalty = false; removeAllTokensFromTable();}
             }
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
         aiThread.start();
+        playerThread = aiThread;
+    }
+
+    public Thread getThread()
+    {
+        return playerThread;
     }
 
     private boolean isTheArrayEmpty()
@@ -222,7 +220,7 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < dealer.sizeOfSet & !dealer.WaitForTheDealerToReshuffle() &
+        if (queue.size() < dealer.sizeOfSet & !dealer.waitForTheDealerToReshuffle() &
         !penalty & !point & table.slotToCard[slot] != null)
         {
             queue.add(slot);
@@ -274,11 +272,6 @@ public class Player implements Runnable {
         return score;
     }
 
-    public int getNumberOfTokens() 
-    {
-        return numberOfTokens;
-    }
-
     public List<Integer> getTokensToSlots()
     {
         return tokenToSlot;
@@ -310,6 +303,7 @@ public class Player implements Runnable {
     {
         if (state == State.Penalty) {penalty = true;}
         else if (state == State.Point) {point = true;}
+        else {removeAllTokensFromTable();}
         announcementTime = null;
     }
 
