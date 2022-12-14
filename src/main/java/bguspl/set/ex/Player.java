@@ -59,15 +59,15 @@ public class Player implements Runnable {
 
     private final Dealer dealer;
     private List<Integer> tokenToSlot;
-    private List<Integer> set;
+    private Integer[] set;
     private Queue<Integer> queue;
     private int numberOfTokens;
+    private Long announcementTime;
     private boolean notifyTheDealer;
+    private boolean waitForTheDealer;
     private boolean penalty;
     private boolean point;
-    private boolean hint;
-    private boolean random;
-    enum State {Penalty,Point}
+    enum State {Penalty,Point,Continue}
 
     /**
      * The class constructor.
@@ -87,14 +87,14 @@ public class Player implements Runnable {
         this.human = human;
 
         tokenToSlot = new LinkedList<>();
-        set = new LinkedList<>();
+        set = new Integer[3];
         queue = new LinkedList<>();
         numberOfTokens = 0;
+        announcementTime = null;
         notifyTheDealer = false;
+        waitForTheDealer = false;
         penalty = false;
         point = false;
-        hint = false;
-        random = false;
     }
 
     /**
@@ -110,6 +110,16 @@ public class Player implements Runnable {
         while (!terminate & human)
         {
             keyOperation();
+
+            if (waitForTheDealer)
+            {
+                synchronized (this)
+                {
+                    try {wait();}
+                    catch (InterruptedException ignore) {}                  
+                    waitForTheDealer = false;
+                }
+            }
 
             if (point) {point(); point = false;}
             else if (penalty) {penalty(); penalty = false;}
@@ -130,30 +140,71 @@ public class Player implements Runnable {
         {
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
 
+            int index = 0;
+
             while (!terminate) 
             {
-                if (!hint & !random)
+                if (dealer.WaitForTheDealerToReshuffle())
                 {
-                    Random r = new Random();
-                    int bound = 10;
-                    if (r.nextInt(bound) > 4) {random = true;}
-                    else {hint = true;}
+                    synchronized (this)
+                    {
+                        try {wait();}
+                        catch (InterruptedException ignore) {}
+                    }
                 }
 
-                if (hint) hint();
-                else {random();}
+                if (isTheArrayEmpty())
+                {
+                    Random random = new Random();
+                    int bound = table.slotToCard.length;
+                    Integer slot;
+                    index = 0;
 
-                try {Thread.sleep(150);}
-                catch (InterruptedException ignore) {}
-
+                    for (int j = 0; j < set.length; j++)
+                    {
+                        do {slot = random.nextInt(bound);}
+                        while (TheArrayContainstheValue(slot) | table.slotToCard[slot] == null);
+                        set[j] = slot;
+                    }                
+                }
+    
+                keyPressed(set[index]);
+                set[index++] = null;
                 keyOperation();
-            
+
+                if (waitForTheDealer)
+                {
+                    synchronized (this)
+                    {
+                        try {wait(dealer.oneSecond);}
+                        catch (InterruptedException ignore) {}
+                        waitForTheDealer = false;
+                    }
+                }                            
                 if (point) {point(); point = false;}
                 else if (penalty) {penalty(); penalty = false; removeAllTokensFromTable();}
             }
             env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
         }, "computer-" + id);
         aiThread.start();
+    }
+
+    private boolean isTheArrayEmpty()
+    {
+        for (int i = 0; i < set.length; i++)
+        {
+            if (set[i] != null) {return false;}
+        }
+        return true;
+    }
+
+    private boolean TheArrayContainstheValue(Integer value)
+    {
+        for (int i = 0; i < set.length; i++)
+        {
+            if (set[i] == value) {return true;}
+        }
+        return false;
     }
 
     /**
@@ -171,7 +222,7 @@ public class Player implements Runnable {
      */
     public void keyPressed(int slot) 
     {
-        if (queue.size() < 3 & !dealer.waitForTheDealer() &
+        if (queue.size() < dealer.sizeOfSet & !dealer.WaitForTheDealerToReshuffle() &
         !penalty & !point & table.slotToCard[slot] != null)
         {
             queue.add(slot);
@@ -186,21 +237,20 @@ public class Player implements Runnable {
      */
     public void point() 
     {
-        int ignored = table.countCards(); // this part is just for demonstration in the unit tests
+        // int ignored = table.countCards(); // this part is just for demonstration in the unit tests
         env.ui.setScore(id, ++score);
 
         removeAllTokensFromTable();
 
         long targetTime = System.currentTimeMillis() + env.config.pointFreezeMillis;
 
-        while (System.currentTimeMillis() < targetTime)
+        while (targetTime - System.currentTimeMillis() > dealer.minimalTimeGap)
         {
             env.ui.setFreeze(id, targetTime - System.currentTimeMillis());
-
-            try {Thread.sleep(950);}
+            try {Thread.sleep(dealer.oneSecond);}
             catch (InterruptedException ignore) {}
         }
-        env.ui.setFreeze(id, 0);
+        env.ui.setFreeze(id, dealer.resetTime);
     }
 
     /**
@@ -210,14 +260,13 @@ public class Player implements Runnable {
     {
         long targetTime = System.currentTimeMillis() + env.config.penaltyFreezeMillis;
 
-        while (System.currentTimeMillis() < targetTime)
+        while (targetTime - System.currentTimeMillis() > dealer.minimalTimeGap)
         {
             env.ui.setFreeze(id, targetTime - System.currentTimeMillis());
-
-            try {Thread.sleep(950);}
+            try {Thread.sleep(dealer.oneSecond);}
             catch (InterruptedException ignore) {}
         }
-        env.ui.setFreeze(id, 0);
+        env.ui.setFreeze(id, dealer.resetTime);
     }
 
     public int getScore() 
@@ -242,7 +291,7 @@ public class Player implements Runnable {
             table.removeToken(id, tokenToSlot.get(i));
         }
         tokenToSlot.clear();
-        notifyTheDealer = false;
+        announcementTime = null;;
     }
 
     public void removeTokensFromTable(Integer set[])
@@ -261,6 +310,7 @@ public class Player implements Runnable {
     {
         if (state == State.Penalty) {penalty = true;}
         else if (state == State.Point) {point = true;}
+        announcementTime = null;
     }
 
     public void keyOperation()
@@ -275,61 +325,26 @@ public class Player implements Runnable {
                 table.removeToken(id, slot);
                 tokenToSlot.remove(slot);
                 toPlaceToken = false;
-                notifyTheDealer = false;
             }
 
-            if (toPlaceToken & tokenToSlot.size() < 3)
+            if (toPlaceToken & tokenToSlot.size() < dealer.sizeOfSet)
             {
                 table.placeToken(id, slot);
                 tokenToSlot.add(slot);
-                if (tokenToSlot.size() == 3) {notifyTheDealer = true;} 
+                if (tokenToSlot.size() == dealer.sizeOfSet) 
+                {
+                    notifyTheDealer = true; 
+                    announcementTime = System.currentTimeMillis();
+                } 
             }
         
             if (notifyTheDealer) 
             {
-                dealer.addToQueue(this); 
-                dealer.interrupt();
+                dealer.updateTheArray(announcementTime, id);
+                synchronized (dealer) {dealer.notify();}
                 notifyTheDealer = false;
+                waitForTheDealer = true;
             }
         }       
-    }
-
-    public void hint()
-    {
-        if (set.size() == 0)
-        {
-            set = table.getSet();
-            if (set == null) {hint = false; random = true; set = new LinkedList<>();}
-            else {keyPressed(set.get(0)); set.remove(0);}
-        }
-        else if (set.size() > 0)
-        {
-            if (set.size() == 1) {hint = false;}
-            keyPressed(set.get(0));
-            set.remove(0);
-        }
-
-    }
-
-    public void random()
-    {
-        if (set.size() == 0)
-        {
-            Random r = new Random();
-            int bound = 11;
-
-            while(set.size() < 3)
-            {
-                int n = r.nextInt(bound);
-                if (!set.contains(n)) {set.add(n);}
-            }
-        }
-        else if (set.size() > 0)
-        {
-            if (set.size() == 1) {random = false;}
-        }
-
-        keyPressed(set.get(0));
-        set.remove(0);
     }
 }

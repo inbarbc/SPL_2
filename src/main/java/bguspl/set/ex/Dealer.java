@@ -3,11 +3,10 @@ package bguspl.set.ex;
 import bguspl.set.Env;
 import bguspl.set.ex.Player.State;
 
-import java.util.List;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
+import java.security.spec.EncodedKeySpec;
 import java.util.*;
 
 /**
@@ -41,21 +40,26 @@ public class Dealer implements Runnable {
      */
     private long reshuffleTime = Long.MAX_VALUE;
 
-    private Queue<Player> queue = new LinkedList<>();
-    private Integer[] set = new Integer[3];
-    private boolean waitForTheDealer = true;
-
-    /**
-     * The thread representing the current dealer.
-     */
-    private Thread dealerThread;
+    private Long[] array;
+    private Integer[] set;
+    private boolean WaitForTheDealerToReshuffle;
+ 
+    public final int sizeOfSet = 3;
+    public final int theFirstObject = 0;
+    public final long minimalTimeGap = 1000;
+    public final long oneSecond = 950;
+    public final long resetTime = 0;
 
     public Dealer(Env env, Table table, Player[] players)
      {
         this.env = env;
         this.table = table;
         this.players = players;
-        deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList());       
+        deck = IntStream.range(0, env.config.deckSize).boxed().collect(Collectors.toList()); 
+        
+        array = new Long[players.length];
+        set = new Integer[3];
+        WaitForTheDealerToReshuffle = true;
     }
 
     /**
@@ -64,7 +68,6 @@ public class Dealer implements Runnable {
     @Override
     public void run() 
     {
-        dealerThread = Thread.currentThread();
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " starting.");
 
         for (Player p : players)
@@ -75,11 +78,13 @@ public class Dealer implements Runnable {
 
         while (!shouldFinish()) 
         {
+            WaitForTheDealerToReshuffle = true;
             placeCardsOnTable();
             updateTimerDisplay(true);
-            waitForTheDealer = false;          
+            WaitForTheDealerToReshuffle = false;
+            Notify();     
             timerLoop();
-            waitForTheDealer = true;
+            WaitForTheDealerToReshuffle = true;
             removeAllTokensFromTable();
             removeAllCardsFromTable();
         }
@@ -87,17 +92,23 @@ public class Dealer implements Runnable {
         env.logger.log(Level.INFO, "Thread " + Thread.currentThread().getName() + " terminated.");
     }
 
+    private void Notify()
+    {
+        for (Player player : players)
+        {
+            synchronized (player) {player.notify();}
+        }
+    }
+
     /**
      * The inner loop of the dealer thread that runs as long as the countdown did not time out.
      */
     private void timerLoop() 
     {
-        while (!terminate && System.currentTimeMillis() < reshuffleTime) 
+        while (!terminate && reshuffleTime - System.currentTimeMillis() > minimalTimeGap) 
         {
             sleepUntilWokenOrTimeout();
             updateTimerDisplay(false);
-            removeCardsFromTable();
-            placeCardsOnTable();
         }
     }
 
@@ -144,38 +155,70 @@ public class Dealer implements Runnable {
     private void placeCardsOnTable() 
     {
         Collections.shuffle(deck); // shuffle deck
-        boolean hint = false;
-
         int slot = 0;
 
         while (slot < table.slotToCard.length && !deck.isEmpty())
         {
             if (table.slotToCard[slot] == null)
             {
-                table.placeCard(deck.get(0), slot);
-                deck.remove(deck.get(0));
-                hint = true;
+                table.placeCard(deck.get(theFirstObject), slot);
+                deck.remove(deck.get(theFirstObject));
             }
             slot++;
-        }     
-        if (hint) 
+        }   
+        if (!IsThereASetInTheRemainingCards()) {terminate = true;} 
+    }
+
+    private boolean IsThereASetInTheRemainingCards()
+    {
+        List<Integer> cards = new LinkedList<>();
+
+        for (int i = 0; i < table.slotToCard.length; i++)
         {
-            table.hints();
-            System.out.println("-----");
-        }        
+            if (table.slotToCard[i] != null) {cards.add(table.slotToCard[i]);}
+        }
+
+        for (int j = 0; j < deck.size(); j++)
+        {
+            cards.add(deck.get(j));
+        }
+
+        return env.util.findSets(cards, 1).size() > 0;
     }
 
     /**
      * Sleep for a fixed amount of time or until the thread is awakened for some purpose.
      */
-    private void sleepUntilWokenOrTimeout() 
+    private synchronized void sleepUntilWokenOrTimeout() 
     {
         try 
         {
-             if (queue.isEmpty()) {dealerThread.sleep(950);}
-             else {CheckingPlayerSet(queue.remove());}
+            if (isTheArrayEmpty()) {wait(oneSecond);}
+            else {CheckingPlayerSet(ThePlayerWhoAnnouncedFirst());}
         }
-        catch (InterruptedException e) {if (!queue.isEmpty()) {CheckingPlayerSet(queue.remove());}}
+        catch (InterruptedException ignore) {}
+    }
+
+    private boolean isTheArrayEmpty()
+    {
+        for (int i = 0; i < array.length; i++)
+        {
+            if (array[i] != null) {return false;}
+        }
+        return true;
+    }
+
+    private int ThePlayerWhoAnnouncedFirst()
+    {
+        Long m = Long.MAX_VALUE;
+        int id = 0;
+
+        for (int i = 0; i < array.length; i++)
+        {
+            if (array[i] != null && array[i] < m) {m = array[i]; id = i;}
+        }
+
+        return id;
     }
 
     /**
@@ -209,6 +252,7 @@ public class Dealer implements Runnable {
     {
         int m = 0;
         int s = 0;
+
         for (Player player : players)
         {
             if (player.getScore() == m) {s++;}
@@ -225,9 +269,9 @@ public class Dealer implements Runnable {
         env.ui.announceWinner(playersId);
     }
 
-    public void addToQueue(Player player)
+    public void updateTheArray(Long time, int id)
     {
-        queue.add(player);
+        array[id] = time;      
     }
 
     public void removeAllTokensFromTable()
@@ -238,50 +282,55 @@ public class Dealer implements Runnable {
         }
     }
 
-    public void interrupt()
+    public void removeTokensFromTable(Player player)
     {
-        dealerThread.interrupt();
-    }
-
-    public void removeTokensFromTable()
-    {
-        for (Player player : players)
+        for (int i = 0; i < player.getTokensToSlots().size(); i++)
         {
-            player.removeTokensFromTable(set);
+            table.slotToCard[player.getTokensToSlots().get(i)] = null;
+        }
+
+        for (Player p : players)
+        {
+            p.removeTokensFromTable(set);
         }
     }
 
-    public void CheckingPlayerSet(Player player)
-    {
-        if (player.getTokensToSlots().size() == 3)
+    public void CheckingPlayerSet(int id)
+    {      
+        if (players[id].getTokensToSlots().size() == sizeOfSet)
         {
-            int[] cards = new int[3];
+            int[] cards = new int[sizeOfSet];
 
             for (int i = 0; i < cards.length; i++)
             {
-                cards[i] = table.slotToCard[player.getTokensToSlots().get(i)];
+                cards[i] = table.slotToCard[players[id].getTokensToSlots().get(i)];
             }
     
             if (env.util.testSet(cards))
             {
                 for (int i = 0; i < cards.length; i++)
                 {
-                    set[i]= player.getTokensToSlots().get(i);
+                    set[i]= players[id].getTokensToSlots().get(i);
                 }
-    
-                player.setState(State.Point);
-                removeTokensFromTable();
+                removeTokensFromTable(players[id]);
+                removeCardsFromTable();
+                placeCardsOnTable();
+                players[id].setState(State.Point);
                 updateTimerDisplay(true);
             }
             else 
             {
-                player.setState(State.Penalty);
+                players[id].setState(State.Penalty);
             }
         }
+        else {players[id].setState(State.Continue);}
+        array[id] = null;
+
+        synchronized (players[id]) {players[id].notify();}
     }
 
-    public boolean waitForTheDealer()
+    public boolean WaitForTheDealerToReshuffle()
     {
-        return waitForTheDealer;
+        return WaitForTheDealerToReshuffle;
     }
 }
