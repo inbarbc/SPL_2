@@ -291,7 +291,7 @@ public class Dealer implements Runnable {
     /**
      * Returns all the cards from the table to the deck.
      */
-    private void removeAllCardsFromTable() 
+    public void removeAllCardsFromTable() 
     {
         for (int i = 0; i < table.slotToCard.length; i++)
         {
